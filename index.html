@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mercury | High-Performance Executor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #030303;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Mantém a estética limpa */
+        }
+
+        /* Animação para o canto inferior esquerdo */
+        @keyframes moveGrid {
+            0% { 
+                transform: translate(0, 0); 
+            }
+            100% { 
+                transform: translate(-40px, 40px); 
+            }
+        }
+
+        .grid-overlay {
+            position: fixed;
+            /* Inset maior para evitar bordas vazias durante a animação */
+            inset: -200px;
+            background-image: 
+                linear-gradient(to right, rgba(220, 38, 38, 0.12) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(220, 38, 38, 0.12) 1px, transparent 1px);
+            background-size: 40px 40px;
+            /* Máscara radial ajustada para manter as linhas visíveis mas suaves nas bordas */
+            mask-image: radial-gradient(ellipse at center, black 40%, transparent 90%);
+            animation: moveGrid 2s linear infinite;
+            z-index: 1;
+        }
+
+        /* Brilho vermelho visível ao fundo */
+        .bg-glow {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 700px;
+            height: 700px;
+            background: radial-gradient(circle, rgba(220, 38, 38, 0.18) 0%, transparent 70%);
+            filter: blur(80px);
+            z-index: 0;
+        }
+
+        .glow-red-text {
+            text-shadow: 0 0 35px rgba(220, 38, 38, 0.6);
+        }
+
+        .nav-glass {
+            background: rgba(10, 10, 10, 0.7);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(220, 38, 38, 0.25);
+        }
+
+        .btn-download {
+            background: rgba(220, 38, 38, 0.1);
+            border: 1px solid rgba(220, 38, 38, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-download:hover {
+            background: rgba(220, 38, 38, 0.2);
+            border-color: rgba(220, 38, 38, 0.8);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 38, 38, 0.2);
+        }
+
+        .status-badge {
+            background: rgba(220, 38, 38, 0.15);
+            border: 1px solid rgba(220, 38, 38, 0.4);
+            color: #ef4444;
+        }
+
+        .operational-dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+            box-shadow: 0 0 12px #10b981;
+        }
+
+        .logo-img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center">
+
+    <!-- Efeitos de Fundo -->
+    <div class="bg-glow"></div>
+    <div class="grid-overlay"></div>
+
+    <!-- Header / Navbar -->
+    <header class="relative z-20 w-full max-w-5xl mt-6 px-4">
+        <nav class="nav-glass rounded-2xl p-3 flex items-center justify-between">
+            <div class="flex items-center gap-3 ml-2">
+                <!-- Ícone Mercury -->
+                <img src="mercuryicon.png" alt="Mercury" class="logo-img" onerror="this.src='https://via.placeholder.com/32/ff0000/ffffff?text=M'">
+                <div>
+                    <span class="font-bold tracking-tight text-lg">MERCURY</span>
+                    <div class="flex items-center text-[10px] text-gray-400 uppercase tracking-widest leading-none">
+                        <span class="operational-dot"></span> OPERATIONAL
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button onclick="startDownload()" class="btn-download px-6 py-2 rounded-xl text-sm font-bold uppercase tracking-wider flex items-center gap-2 text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Download Now
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hero Content -->
+    <main class="relative z-10 flex flex-col items-center justify-center flex-grow text-center px-4">
+        <!-- Badge Superior -->
+        <div class="status-badge px-5 py-2 rounded-full text-[10px] font-black tracking-[0.2em] uppercase mb-10 flex items-center gap-2">
+            <span class="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+            THE KEYLESS EXECUTOR
+        </div>
+
+        <!-- Títulos principais -->
+        <h1 class="text-7xl md:text-9xl font-bold tracking-tighter mb-6 leading-none">
+            Rule with <br>
+            <span class="text-red-600 glow-red-text italic">Mercury</span>
+        </h1>
+
+        <p class="text-gray-300 text-lg md:text-2xl max-w-2xl mb-12 font-light leading-relaxed">
+            Unleash the full potential of your gameplay with Mercury. Engineered for elite stability and unrivaled performance in every script.
+        </p>
+
+        <!-- Botão de Ação central -->
+        <div class="flex flex-col items-center gap-4">
+            <button onclick="startDownload()" class="bg-white text-black hover:bg-gray-200 px-14 py-5 rounded-2xl font-black text-xl flex items-center justify-center gap-3 transition-all transform hover:scale-105 active:scale-95 shadow-2xl shadow-red-900/20">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                GET MERCURY
+            </button>
+        </div>
+    </main>
+
+    <script>
+        const downloadUrl = 'https://mercury-windows.netlify.app/mercury.zip';
+
+        function startDownload() {
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = 'mercury.zip';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Feedback visual no botão
+            const btns = document.querySelectorAll('button');
+            btns.forEach(btn => {
+                if(btn.innerText.includes('MERCURY') || btn.innerText.includes('Download')) {
+                    const originalContent = btn.innerHTML;
+                    btn.innerText = 'Starting...';
+                    setTimeout(() => { btn.innerHTML = originalContent; }, 2000);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
