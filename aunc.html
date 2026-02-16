@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>aUnc - Unified Executor Audit Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        body { font-family: 'JetBrains+Mono', monospace; background-color: #0a0a0c; color: #e2e2e2; }
+        .glass { background: rgba(23, 23, 26, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .card-passed { border-left: 4px solid #22c55e; }
+        .card-failed { border-left: 4px solid #ef4444; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        .chart-container { position: relative; width: 250px; height: 250px; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-white flex items-center gap-2">
+                    <span class="text-blue-500">🚀</span> aUnc Audit Dashboard
+                </h1>
+                <p class="text-gray-400 text-sm">Versão Web para Script Audit v2.2.1</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="copyShareLink()" id="btnShare" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-all text-sm font-bold shadow-lg shadow-emerald-900/20">
+                    🔗 COPIAR LINK
+                </button>
+                <button onclick="toggleModal('importModal')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all text-sm font-bold shadow-lg shadow-blue-900/20">
+                    + IMPORTAR RESULTADO
+                </button>
+                <button onclick="clearHistory()" class="bg-red-600/20 hover:bg-red-600/40 text-red-500 px-4 py-2 rounded-lg transition-all text-sm">
+                    LIMPAR TUDO
+                </button>
+            </div>
+        </header>
+
+        <div id="noData" class="text-center py-20 glass rounded-2xl border-dashed border-2 border-white/5">
+            <p class="text-gray-500">Nenhum dado de auditoria encontrado.</p>
+            <p class="text-sm text-gray-600">Execute o script Lua e cole o JSON gerado aqui ou acesse via link compartilhado.</p>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboardContent" class="hidden space-y-6">
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="glass p-6 rounded-2xl text-center">
+                    <p class="text-gray-400 text-xs uppercase mb-1">Executor</p>
+                    <p id="statAgent" class="text-xl font-bold text-blue-400 truncate">-</p>
+                </div>
+                <div class="glass p-6 rounded-2xl text-center">
+                    <p class="text-gray-400 text-xs uppercase mb-1">Score Geral</p>
+                    <p id="statScore" class="text-3xl font-bold text-white">-</p>
+                </div>
+                <div class="glass p-6 rounded-2xl text-center">
+                    <p class="text-gray-400 text-xs uppercase mb-1">Sucessos</p>
+                    <p id="statPassed" class="text-2xl font-bold text-green-500">-</p>
+                </div>
+                <div class="glass p-6 rounded-2xl text-center">
+                    <p class="text-gray-400 text-xs uppercase mb-1">Falhas/Erros</p>
+                    <p id="statFailed" class="text-2xl font-bold text-red-500">-</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Chart Section -->
+                <div class="glass p-6 rounded-2xl lg:col-span-1 flex flex-col items-center justify-center min-h-[350px]">
+                    <h3 class="text-sm font-bold mb-6 self-start">DISTRIBUIÇÃO DE TESTES</h3>
+                    <div class="chart-container">
+                        <canvas id="scoreChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Test Details List -->
+                <div class="glass p-6 rounded-2xl lg:col-span-2">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                        <h3 class="text-sm font-bold uppercase tracking-wider">Detalhes das Funções</h3>
+                        <input type="text" id="testSearch" onkeyup="filterTests()" placeholder="Pesquisar função..." class="bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-xs focus:outline-none focus:border-blue-500 w-full sm:w-64">
+                    </div>
+                    <div id="testList" class="space-y-2 max-h-[450px] overflow-y-auto custom-scrollbar pr-2">
+                        <!-- Tests populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Section -->
+        <div id="historySection" class="mt-12 hidden">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-gray-300">
+                <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Histórico Local
+            </h3>
+            <div id="historyList" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div id="importModal" class="fixed inset-0 bg-black/90 hidden items-center justify-center p-4 z-50 transition-all">
+        <div class="glass w-full max-w-2xl p-6 rounded-2xl border border-blue-500/30">
+            <h2 class="text-xl font-bold mb-2 text-white">Importar Dados JSON</h2>
+            <p class="text-sm text-gray-400 mb-6 font-sans">Cole o JSON copiado automaticamente pelo seu script Lua (v2.2.1+).</p>
+            <textarea id="jsonInput" placeholder='Paste JSON here...' 
+                class="w-full h-64 bg-black/60 border border-white/10 rounded-xl p-4 text-xs font-mono focus:outline-none focus:border-blue-500 text-blue-300 custom-scrollbar"></textarea>
+            <div class="flex justify-end gap-3 mt-6">
+                <button onclick="toggleModal('importModal')" class="px-5 py-2 text-gray-400 hover:text-white transition-colors">Cancelar</button>
+                <button onclick="processImport()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-lg font-bold shadow-lg shadow-blue-600/20">PROCESSAR</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let myChart = null;
+        let auditData = [];
+        let currentTests = [];
+        let activeResult = null;
+
+        // Load data from LocalStorage or URL Hash on start
+        window.onload = () => {
+            const hash = window.location.hash.substring(1);
+            if (hash) {
+                loadFromHash(hash);
+            }
+
+            const saved = localStorage.getItem('aunc_history');
+            if (saved) {
+                auditData = JSON.parse(saved);
+                if (!activeResult) renderDashboard(auditData[0]);
+                renderHistory();
+            }
+        };
+
+        function loadFromHash(hash) {
+            try {
+                const decoded = atob(hash);
+                const parsed = JSON.parse(decoded);
+                renderDashboard(parsed);
+                console.log("Resultado carregado via URL Hash.");
+            } catch(e) {
+                console.error("Erro ao carregar dados do hash da URL.");
+            }
+        }
+
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.toggle('hidden');
+            modal.classList.toggle('flex');
+            if (!modal.classList.contains('hidden')) {
+                document.getElementById('jsonInput').focus();
+            }
+        }
+
+        function processImport() {
+            const raw = document.getElementById('jsonInput').value;
+            try {
+                let parsed;
+                try {
+                    parsed = JSON.parse(raw);
+                } catch(e) {
+                    parsed = extractDataFromLog(raw);
+                }
+
+                if (!parsed.Agent) parsed.Agent = "Executor Desconhecido";
+                parsed.id = Date.now();
+                parsed.date = new Date().toLocaleString('pt-BR');
+
+                // Update hash in URL
+                const hashValue = btoa(JSON.stringify(parsed));
+                window.location.hash = hashValue;
+
+                auditData.unshift(parsed);
+                localStorage.setItem('aunc_history', JSON.stringify(auditData.slice(0, 20))); 
+                
+                renderDashboard(parsed);
+                renderHistory();
+                toggleModal('importModal');
+                document.getElementById('jsonInput').value = "";
+            } catch (err) {
+                alert("Erro ao processar dados: Verifique se o JSON está correto.");
+            }
+        }
+
+        function extractDataFromLog(text) {
+            const agentMatch = text.match(/Agent: (.*)/) || text.match(/Detected Agent: (.*)/);
+            const passedMatch = text.match(/Passed: (\d+)/) || text.match(/✅ Passou: (\d+)/);
+            const failedMatch = text.match(/Failed: (\d+)/) || text.match(/❌ Falhou: (\d+)/);
+            const scoreMatch = text.match(/Score: (\d+)%/) || text.match(/Final Score: (\d+)%/);
+            const total = (parseInt(passedMatch?.[1] || 0)) + (parseInt(failedMatch?.[1] || 0));
+
+            if (!passedMatch) throw new Error("Log inválido.");
+
+            return {
+                Agent: agentMatch ? agentMatch[1] : "Import Manual",
+                Results: {
+                    Passed: parseInt(passedMatch[1]),
+                    Failed: parseInt(failedMatch[1]),
+                    Total: total,
+                    Score: scoreMatch ? parseInt(scoreMatch[1]) : 0
+                },
+                Tests: []
+            };
+        }
+
+        function renderDashboard(data) {
+            activeResult = data;
+            document.getElementById('noData').classList.add('hidden');
+            document.getElementById('dashboardContent').classList.remove('hidden');
+            document.getElementById('btnShare').classList.remove('hidden');
+
+            document.getElementById('statAgent').innerText = data.Agent;
+            document.getElementById('statScore').innerText = data.Results.Score + "%";
+            document.getElementById('statPassed').innerText = data.Results.Passed;
+            document.getElementById('statFailed').innerText = data.Results.Failed;
+
+            updateChart(data.Results.Passed, data.Results.Failed, data.Results.Score);
+
+            currentTests = data.Tests || [];
+            renderTestItems(currentTests);
+        }
+
+        function copyShareLink() {
+            if (!activeResult) return;
+            // O link já contém o hash se renderizado recentemente
+            const link = window.location.href;
+            
+            const tempInput = document.createElement("input");
+            tempInput.value = link;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            
+            const btn = document.getElementById('btnShare');
+            const originalText = btn.innerText;
+            btn.innerText = "COPIADO!";
+            setTimeout(() => btn.innerText = originalText, 2000);
+        }
+
+        function renderTestItems(tests) {
+            const list = document.getElementById('testList');
+            list.innerHTML = "";
+            
+            if (tests.length > 0) {
+                tests.forEach(test => {
+                    const item = document.createElement('div');
+                    item.className = `p-3 rounded-xl flex justify-between items-center text-[11px] group transition-all duration-200 border border-white/5 ${test.Passed ? 'bg-green-500/5 card-passed hover:bg-green-500/10' : 'bg-red-500/5 card-failed hover:bg-red-500/10'}`;
+                    item.innerHTML = `
+                        <div class="flex flex-col">
+                            <span class="text-gray-500 font-bold uppercase text-[9px] tracking-widest">${test.Category || 'TEST'}</span>
+                            <span class="text-gray-200 font-semibold">${test.Name}</span>
+                        </div>
+                        <span class="px-2 py-1 rounded-md font-bold ${test.Passed ? 'text-green-500 bg-green-500/10' : 'text-red-500 bg-red-500/10'}">${test.Passed ? 'PASSED' : 'FAILED'}</span>
+                    `;
+                    list.appendChild(item);
+                });
+            } else {
+                list.innerHTML = "<div class='text-gray-500 text-center py-10 opacity-50'>Sem detalhes individuais neste log.</div>";
+            }
+        }
+
+        function filterTests() {
+            const query = document.getElementById('testSearch').value.toLowerCase();
+            const filtered = currentTests.filter(t => 
+                t.Name.toLowerCase().includes(query) || 
+                t.Category.toLowerCase().includes(query)
+            );
+            renderTestItems(filtered);
+        }
+
+        const centerTextPlugin = {
+            id: 'centerText',
+            afterDraw: (chart) => {
+                const { ctx, chartArea: { top, bottom, left, right, width, height } } = chart;
+                const score = chart.options.plugins.centerText.score;
+                
+                ctx.save();
+                ctx.font = 'bold 36px JetBrains Mono';
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(score + '%', left + width / 2, top + height / 2);
+                ctx.restore();
+            }
+        };
+
+        function updateChart(passed, failed, score) {
+            const ctx = document.getElementById('scoreChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            
+            myChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Sucesso', 'Falha'],
+                    datasets: [{
+                        data: [passed, failed],
+                        backgroundColor: ['#22c55e', '#ef4444'],
+                        borderColor: '#0a0a0c',
+                        borderWidth: 4,
+                        hoverOffset: 10,
+                        borderRadius: 5
+                    }]
+                },
+                plugins: [centerTextPlugin],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '82%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true },
+                        centerText: { score: score }
+                    }
+                }
+            });
+        }
+
+        function renderHistory() {
+            const historyList = document.getElementById('historyList');
+            if (auditData.length > 0) {
+                document.getElementById('historySection').classList.remove('hidden');
+                historyList.innerHTML = "";
+                auditData.forEach((item, index) => {
+                    const card = document.createElement('div');
+                    card.className = `glass p-4 rounded-xl cursor-pointer hover:border-blue-500/50 transition-all border ${activeResult && item.id === activeResult.id ? 'border-blue-500/60 shadow-lg shadow-blue-500/10' : 'border-white/5 opacity-70 hover:opacity-100'}`;
+                    card.onclick = () => {
+                        window.location.hash = btoa(JSON.stringify(item));
+                        renderDashboard(item);
+                    };
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-[10px] text-blue-400 font-bold">${item.date.split(' ')[0]}</span>
+                            <span class="text-[10px] bg-white/5 px-2 py-0.5 rounded text-gray-400">${item.Results.Score}%</span>
+                        </div>
+                        <p class="text-xs font-bold text-white truncate">${item.Agent}</p>
+                    `;
+                    historyList.appendChild(card);
+                });
+            }
+        }
+
+        function clearHistory() {
+            if(confirm("Tem certeza que deseja apagar o histórico?")) {
+                localStorage.removeItem('aunc_history');
+                window.location.hash = "";
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
